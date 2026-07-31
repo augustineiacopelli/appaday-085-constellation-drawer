@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>085 &middot; Constellation Drawer</title>
+<meta name="description" content="Tap points on a night sky to connect stars, name your constellation, and save a shareable image. A calm, single-purpose creative toy.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Josefin+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#e8ecff;
+    --muted:#9aa6d8;
+    --accent:#ffd37f;
+    --panel:rgba(10,14,34,0.55);
+    --edge:rgba(160,180,240,0.18);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    min-height:100dvh;
+    display:flex;
+    flex-direction:column;
+    background:#03040d;
+    color:var(--ink);
+    font-family:"Josefin Sans",system-ui,-apple-system,sans-serif;
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{position:relative;flex:1;min-height:0;}
+  #sky{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair;}
+
+  .appbar{
+    position:absolute;top:0;left:0;right:0;z-index:3;
+    display:flex;justify-content:space-between;align-items:center;gap:12px;
+    padding:calc(10px + env(safe-area-inset-top,0px)) calc(14px + env(safe-area-inset-right,0px)) 12px calc(14px + env(safe-area-inset-left,0px));
+    background:linear-gradient(to bottom,rgba(3,4,13,0.8),rgba(3,4,13,0));
+    pointer-events:none;
+  }
+  .brand{font-size:13px;letter-spacing:1.6px;color:var(--muted);text-transform:uppercase;}
+  .brand b{color:var(--ink);font-weight:600;}
+  .back{
+    pointer-events:auto;
+    color:var(--muted);text-decoration:none;font-size:13px;letter-spacing:1.2px;
+    padding:6px 12px;border:1px solid var(--edge);border-radius:999px;
+    transition:color .2s,border-color .2s;white-space:nowrap;
+  }
+  .back:hover{color:var(--ink);border-color:rgba(255,211,127,0.5);}
+
+  .caption{
+    position:absolute;left:0;right:0;bottom:168px;z-index:2;pointer-events:none;
+    text-align:center;padding:0 18px;
+    font-family:"Cinzel",serif;font-size:clamp(20px,5vw,34px);letter-spacing:3px;
+    color:rgba(236,240,255,0.92);text-shadow:0 0 20px rgba(120,150,255,0.35);
+    opacity:0;transform:translateY(6px);transition:opacity .45s,transform .45s;
+  }
+  .caption.show{opacity:1;transform:none;}
+
+  .hint{
+    position:absolute;left:0;right:0;top:44%;z-index:2;pointer-events:none;
+    text-align:center;padding:0 26px;
+    color:rgba(200,210,255,0.62);font-size:clamp(15px,3.6vw,19px);letter-spacing:1px;
+    transition:opacity .6s;
+  }
+  .hint.gone{opacity:0;}
+
+  .dock{
+    position:absolute;left:0;right:0;bottom:0;z-index:3;
+    display:flex;flex-direction:column;gap:10px;
+    padding:14px calc(14px + env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) calc(14px + env(safe-area-inset-left,0px));
+    background:linear-gradient(to top,rgba(3,4,13,0.92),rgba(3,4,13,0.35) 68%,rgba(3,4,13,0));
+  }
+  .cname{
+    width:100%;background:var(--panel);border:1px solid var(--edge);border-radius:12px;
+    color:var(--ink);font-family:"Cinzel",serif;font-size:16px;letter-spacing:1.5px;
+    padding:12px 14px;outline:none;text-align:center;
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  }
+  .cname::placeholder{color:rgba(154,166,216,0.7);font-family:"Josefin Sans",sans-serif;letter-spacing:1px;}
+  .cname:focus{border-color:rgba(255,211,127,0.55);}
+  .btns{display:flex;gap:8px;}
+  .btn{
+    flex:1;appearance:none;-webkit-appearance:none;cursor:pointer;
+    background:var(--panel);color:var(--ink);border:1px solid var(--edge);border-radius:12px;
+    padding:12px 10px;font-family:"Josefin Sans",sans-serif;font-size:15px;letter-spacing:1px;
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+    transition:transform .1s,border-color .2s,background .2s;
+  }
+  .btn:hover{border-color:rgba(160,180,240,0.42);}
+  .btn:active{transform:translateY(1px);}
+  .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .btn.primary{background:linear-gradient(180deg,rgba(255,214,130,0.96),rgba(240,180,90,0.96));color:#241a05;border-color:transparent;font-weight:500;}
+  .btn.danger{background:linear-gradient(180deg,#ffb1a3,#ff8f7c);color:#2a0c08;border-color:transparent;font-weight:500;}
+  .status{margin:0;text-align:center;color:var(--muted);font-size:13px;letter-spacing:0.5px;min-height:16px;}
+
+  .modal{
+    position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;padding:20px;
+    background:rgba(2,3,10,0.72);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+  }
+  .modal.open{display:flex;}
+  .sheet{
+    width:100%;max-width:420px;max-height:88vh;overflow:auto;
+    background:linear-gradient(180deg,#0c1130,#080b22);border:1px solid var(--edge);border-radius:18px;
+    padding:22px;box-shadow:0 24px 60px rgba(0,0,0,0.6);
+  }
+  .sheet h2{margin:0 0 8px;font-family:"Cinzel",serif;font-weight:600;font-size:22px;letter-spacing:2px;}
+  .sheet p{margin:0 0 16px;color:var(--muted);font-size:15px;line-height:1.5;}
+  .sheet .tiny{font-size:13px;}
+  .preview{width:100%;border-radius:12px;border:1px solid var(--edge);display:block;margin-bottom:14px;background:#05060f;}
+  .sheetBtns{display:flex;gap:10px;}
+  .sheetBtns .btn{text-decoration:none;text-align:center;display:flex;align-items:center;justify-content:center;}
+
+  @media(min-width:640px){
+    .dock{max-width:560px;left:50%;transform:translateX(-50%);border-radius:18px 18px 0 0;}
+  }
+  @media(prefers-reduced-motion:reduce){
+    .caption,.hint,.btn{transition:none;}
+  }
+</style>
+</head>
+<body>
+  <div class="wrap" id="wrap">
+    <canvas id="sky"></canvas>
+
+    <header class="appbar">
+      <span class="brand"><b>085</b> &middot; Constellation Drawer</span>
+      <a class="back" href="https://augustineiacopelli.github.io/appaday/">&#8592; AppADay</a>
+    </header>
+
+    <div class="caption" id="caption"></div>
+    <div class="hint" id="hint">Tap the sky to begin your constellation.</div>
+
+    <footer class="dock">
+      <input id="cname" class="cname" type="text" maxlength="40" placeholder="Name your constellation" autocomplete="off" spellcheck="false" aria-label="Constellation name">
+      <div class="btns">
+        <button id="undo" class="btn" type="button">Undo</button>
+        <button id="clear" class="btn" type="button">Clear</button>
+        <button id="save" class="btn primary" type="button">Save Image</button>
+      </div>
+      <p id="status" class="status">Tap the sky to place a star. Tap a star to branch from it.</p>
+    </footer>
+  </div>
+
+  <div class="modal" id="clearModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="clearTitle">
+    <div class="sheet">
+      <h2 id="clearTitle">Clear the sky?</h2>
+      <p>This removes every star and line. You cannot undo it.</p>
+      <div class="sheetBtns">
+        <button id="clearCancel" class="btn" type="button">Cancel</button>
+        <button id="clearOk" class="btn danger" type="button">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="saveModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="saveTitle">
+    <div class="sheet">
+      <h2 id="saveTitle">Your constellation</h2>
+      <img id="saveImg" class="preview" alt="Your constellation image">
+      <p class="tiny">On a phone, press and hold the image to save it. On a computer, use Download.</p>
+      <div class="sheetBtns">
+        <button id="saveClose" class="btn" type="button">Close</button>
+        <a id="saveDownload" class="btn primary" download="constellation.png">Download</a>
+      </div>
+    </div>
+  </div>
+
+<script>
+window.addEventListener('load', function(){
+  'use strict';
+  var TAU = Math.PI * 2;
+
+  var canvas = document.getElementById('sky');
+  var ctx = canvas.getContext('2d');
+  var nameInput = document.getElementById('cname');
+  var caption = document.getElementById('caption');
+  var statusEl = document.getElementById('status');
+  var hintEl = document.getElementById('hint');
+  var undoBtn = document.getElementById('undo');
+  var clearBtn = document.getElementById('clear');
+  var saveBtn = document.getElementById('save');
+  var clearModal = document.getElementById('clearModal');
+  var clearCancel = document.getElementById('clearCancel');
+  var clearOk = document.getElementById('clearOk');
+  var saveModal = document.getElementById('saveModal');
+  var saveClose = document.getElementById('saveClose');
+  var saveImg = document.getElementById('saveImg');
+  var saveDownload = document.getElementById('saveDownload');
+
+  var W = 0, H = 0, dpr = 1;
+  var stars = [];   // { id, nx, ny }
+  var edges = [];   // { a, b } star ids
+  var activeId = null;
+  var nextId = 1;
+  var history = []; // { starId, prevActive }
+  var pulses = [];  // { nx, ny, t0 }
+  var KEY = 'appaday-085-constellation';
+
+  if (document.fonts && document.fonts.load) {
+    try { document.fonts.load('600 40px "Cinzel"'); document.fonts.load('400 20px "Josefin Sans"'); } catch (e) {}
+  }
+
+  function mulberry32(a){
+    return function(){
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  var rng = mulberry32(85021317);
+  var bgStars = [];
+  (function makeBg(){
+    for (var i = 0; i < 120; i++) {
+      bgStars.push({
+        nx: rng(), ny: rng(),
+        r: 0.0012 + rng() * 0.0024,
+        a: 0.22 + rng() * 0.6,
+        spd: 0.25 + rng() * 0.9,
+        ph: rng() * TAU
+      });
+    }
+  })();
+
+  function byId(id){
+    for (var i = 0; i < stars.length; i++) { if (stars[i].id === id) return stars[i]; }
+    return null;
+  }
+
+  function sizeCanvas(){
+    var rect = canvas.getBoundingClientRect();
+    W = Math.max(1, Math.round(rect.width));
+    H = Math.max(1, Math.round(rect.height));
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function nebula(g, w, h){
+    var blobs = [
+      [0.24, 0.30, 'rgba(70,60,140,0.16)'],
+      [0.76, 0.62, 'rgba(40,80,140,0.14)'],
+      [0.50, 0.86, 'rgba(90,50,110,0.10)']
+    ];
+    for (var i = 0; i < blobs.length; i++) {
+      var b = blobs[i], cx = b[0] * w, cy = b[1] * h, rad = Math.max(w, h) * 0.5;
+      var rg = g.createRadialGradient(cx, cy, 0, cx, cy, rad);
+      rg.addColorStop(0, b[2]); rg.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = rg; g.fillRect(0, 0, w, h);
+    }
+  }
+
+  function drawLine(g, x1, y1, x2, y2){
+    g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+  }
+
+  function renderScene(g, w, h, time){
+    var unit = Math.min(w, h), i;
+
+    var grad = g.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#0b1030');
+    grad.addColorStop(0.55, '#070b20');
+    grad.addColorStop(1, '#03040d');
+    g.fillStyle = grad; g.fillRect(0, 0, w, h);
+
+    nebula(g, w, h);
+
+    for (i = 0; i < bgStars.length; i++) {
+      var bs = bgStars[i], a = bs.a;
+      if (time != null) { a = bs.a * (0.6 + 0.4 * Math.sin(time * bs.spd + bs.ph)); }
+      g.globalAlpha = a < 0 ? 0 : (a > 1 ? 1 : a);
+      g.fillStyle = '#e6ecff';
+      g.beginPath(); g.arc(bs.nx * w, bs.ny * h, bs.r * unit, 0, TAU); g.fill();
+    }
+    g.globalAlpha = 1;
+
+    var lw = Math.max(1, unit * 0.004);
+    g.lineCap = 'round';
+    for (i = 0; i < edges.length; i++) {
+      var A = byId(edges[i].a), B = byId(edges[i].b);
+      if (!A || !B) continue;
+      g.strokeStyle = 'rgba(150,190,255,0.18)'; g.lineWidth = lw * 3.2;
+      drawLine(g, A.nx * w, A.ny * h, B.nx * w, B.ny * h);
+      g.strokeStyle = 'rgba(205,224,255,0.9)'; g.lineWidth = lw;
+      drawLine(g, A.nx * w, A.ny * h, B.nx * w, B.ny * h);
+    }
+
+    var coreR = Math.max(1.6, unit * 0.0075), glowR = Math.max(7, unit * 0.032);
+    for (i = 0; i < stars.length; i++) {
+      var s = stars[i], px = s.nx * w, py = s.ny * h;
+      var rg = g.createRadialGradient(px, py, 0, px, py, glowR);
+      rg.addColorStop(0, 'rgba(255,246,220,0.95)');
+      rg.addColorStop(0.35, 'rgba(255,230,168,0.4)');
+      rg.addColorStop(1, 'rgba(255,230,168,0)');
+      g.fillStyle = rg; g.beginPath(); g.arc(px, py, glowR, 0, TAU); g.fill();
+      g.fillStyle = '#fffef7'; g.beginPath(); g.arc(px, py, coreR, 0, TAU); g.fill();
+      if (time != null && s.id === activeId) {
+        var pr = glowR * (0.6 + 0.08 * Math.sin(time * 3));
+        g.strokeStyle = 'rgba(255,211,128,0.9)';
+        g.lineWidth = Math.max(1.2, unit * 0.003);
+        g.beginPath(); g.arc(px, py, pr, 0, TAU); g.stroke();
+      }
+    }
+
+    if (time != null) {
+      for (i = 0; i < pulses.length; i++) {
+        var p = pulses[i], age = time - p.t0, k = age / 0.7;
+        if (k < 0) k = 0; if (k > 1) continue;
+        var rr = glowR * (0.4 + k * 1.6), al = (1 - k) * 0.5;
+        g.globalAlpha = al;
+        g.strokeStyle = 'rgba(255,235,190,1)';
+        g.lineWidth = Math.max(1, unit * 0.0025);
+        g.beginPath(); g.arc(p.nx * w, p.ny * h, rr, 0, TAU); g.stroke();
+      }
+      g.globalAlpha = 1;
+    }
+  }
+
+  var animating = true;
+  function frame(ts){
+    var time = (ts || performance.now()) / 1000;
+    if (pulses.length) {
+      pulses = pulses.filter(function(p){ return time - p.t0 < 0.75; });
+    }
+    renderScene(ctx, W, H, time);
+    if (animating) requestAnimationFrame(frame);
+  }
+
+  function setStatus(t){ statusEl.textContent = t; }
+  function updateHint(){
+    if (stars.length === 0) hintEl.classList.remove('gone');
+    else hintEl.classList.add('gone');
+  }
+  function updateCaption(){
+    var n = nameInput.value.trim();
+    if (n) { caption.textContent = n; caption.classList.add('show'); }
+    else { caption.classList.remove('show'); }
+  }
+
+  function persist(){
+    try {
+      localStorage.setItem(KEY, JSON.stringify({
+        stars: stars, edges: edges, activeId: activeId, nextId: nextId, name: nameInput.value
+      }));
+    } catch (e) {}
+  }
+  function restore(){
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      var d = JSON.parse(raw);
+      if (d && Array.isArray(d.stars)) {
+        stars = d.stars;
+        edges = Array.isArray(d.edges) ? d.edges : [];
+        activeId = (d.activeId == null) ? null : d.activeId;
+        var mx = 0;
+        for (var i = 0; i < stars.length; i++) { if (stars[i].id > mx) mx = stars[i].id; }
+        nextId = (d.nextId && d.nextId > mx) ? d.nextId : mx + 1;
+        if (typeof d.name === 'string') nameInput.value = d.name;
+      }
+    } catch (e) {}
+  }
+
+  function onTap(ev){
+    if (ev.isPrimary === false) return;
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+    var rect = canvas.getBoundingClientRect();
+    var x = ev.clientX - rect.left, y = ev.clientY - rect.top;
+
+    var hit = null, best = 22 * 22;
+    for (var i = 0; i < stars.length; i++) {
+      var s = stars[i], dx = s.nx * W - x, dy = s.ny * H - y, d2 = dx * dx + dy * dy;
+      if (d2 < best) { best = d2; hit = s; }
+    }
+
+    if (hit) {
+      if (hit.id === activeId) {
+        activeId = null;
+        setStatus('Anchor released. The next tap starts a new line.');
+      } else {
+        activeId = hit.id;
+        setStatus('Anchored to a star. Tap the sky to branch from it.');
+      }
+      persist();
+      return;
+    }
+
+    var prev = activeId;
+    var ns = { id: nextId++, nx: x / W, ny: y / H };
+    stars.push(ns);
+    if (prev != null && byId(prev)) edges.push({ a: prev, b: ns.id });
+    activeId = ns.id;
+    history.push({ starId: ns.id, prevActive: prev });
+    pulses.push({ nx: ns.nx, ny: ns.ny, t0: performance.now() / 1000 });
+    setStatus(edges.length ? 'Star placed and linked.' : 'First star placed. Tap again to draw a line.');
+    updateHint();
+    persist();
+  }
+
+  function undo(){
+    if (!history.length) { setStatus('Nothing to undo.'); return; }
+    var last = history.pop();
+    stars = stars.filter(function(s){ return s.id !== last.starId; });
+    edges = edges.filter(function(e){ return e.a !== last.starId && e.b !== last.starId; });
+    activeId = (last.prevActive != null && byId(last.prevActive)) ? last.prevActive : null;
+    setStatus('Removed the last star.');
+    updateHint();
+    persist();
+  }
+
+  function openClear(){
+    if (!stars.length) { setStatus('The sky is already empty.'); return; }
+    clearModal.classList.add('open');
+    clearModal.setAttribute('aria-hidden', 'false');
+  }
+  function closeClear(){
+    clearModal.classList.remove('open');
+    clearModal.setAttribute('aria-hidden', 'true');
+  }
+  function doClear(){
+    stars = []; edges = []; activeId = null; history = []; pulses = []; nextId = 1;
+    closeClear();
+    setStatus('Cleared the sky.');
+    updateHint();
+    persist();
+  }
+
+  function sanitize(n){
+    var s = (n || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    return s || 'constellation';
+  }
+
+  function exportImage(){
+    var EW = 1200;
+    var ratio = (W > 0) ? (H / W) : 1.25;
+    var EH = Math.round(EW * ratio);
+    var c = document.createElement('canvas');
+    c.width = EW; c.height = EH;
+    var g = c.getContext('2d');
+    renderScene(g, EW, EH, null);
+
+    var unit = Math.min(EW, EH);
+    var n = nameInput.value.trim();
+    if (n) {
+      g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+      g.fillStyle = 'rgba(236,240,255,0.95)';
+      g.font = '600 ' + Math.round(unit * 0.052) + 'px "Cinzel", serif';
+      g.fillText(n, EW / 2, EH - unit * 0.075);
+    }
+    g.textAlign = 'right'; g.textBaseline = 'alphabetic';
+    g.fillStyle = 'rgba(150,164,214,0.8)';
+    g.font = Math.round(unit * 0.022) + 'px "Josefin Sans", sans-serif';
+    g.fillText('AppADay', EW - unit * 0.04, EH - unit * 0.035);
+
+    var url;
+    try { url = c.toDataURL('image/png'); }
+    catch (e) { setStatus('Could not export the image.'); return; }
+    saveImg.src = url;
+    saveDownload.href = url;
+    saveDownload.download = sanitize(n) + '.png';
+    saveModal.classList.add('open');
+    saveModal.setAttribute('aria-hidden', 'false');
+  }
+  function closeSave(){
+    saveModal.classList.remove('open');
+    saveModal.setAttribute('aria-hidden', 'true');
+  }
+
+  canvas.addEventListener('pointerdown', onTap);
+  undoBtn.addEventListener('click', undo);
+  clearBtn.addEventListener('click', openClear);
+  clearCancel.addEventListener('click', closeClear);
+  clearOk.addEventListener('click', doClear);
+  saveBtn.addEventListener('click', exportImage);
+  saveClose.addEventListener('click', closeSave);
+  nameInput.addEventListener('input', function(){ updateCaption(); persist(); });
+  clearModal.addEventListener('click', function(e){ if (e.target === clearModal) closeClear(); });
+  saveModal.addEventListener('click', function(e){ if (e.target === saveModal) closeSave(); });
+  window.addEventListener('resize', sizeCanvas);
+  window.addEventListener('orientationchange', function(){ setTimeout(sizeCanvas, 150); });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') { closeClear(); closeSave(); }
+  });
+  document.addEventListener('visibilitychange', function(){
+    if (document.hidden) { animating = false; }
+    else if (!animating) { animating = true; requestAnimationFrame(frame); }
+  });
+
+  restore();
+  updateCaption();
+  updateHint();
+  sizeCanvas();
+  requestAnimationFrame(frame);
+});
+</script>
+</body>
+</html>
